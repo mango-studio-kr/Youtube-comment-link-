@@ -1,17 +1,8 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { createWorker } from 'tesseract.js';
 import { 
-  Upload, ExternalLink, Image as ImageIcon, Loader2, 
-  ClipboardCopy, CheckCircle2, AlertCircle, X, ScanText, RefreshCw
+  Upload, ExternalLink, Loader2, X, ScanText
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-// CSS 클래스 합치기 유틸리티
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 interface LinkResult {
   url: string;
@@ -23,8 +14,6 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<LinkResult[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [scanProgress, setScanProgress] = useState(0);
   const [processingStep, setProcessingStep] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,38 +44,33 @@ export default function App() {
     const uniqueLinks = Array.from(new Set(cleanedLinks));
     return uniqueLinks.map(url => ({
       url,
-      id: Math.random().toString(36).substr(2, 9)
+      id: Math.random().toString(36).substring(2, 11)
     }));
   };
 
   const scanWithLocalOCR = async (imageSrc: string) => {
     setIsProcessing(true);
     setError(null);
-    setScanProgress(0);
+    setResults([]);
     setProcessingStep('이미지 최적화 중...');
 
     try {
       const processedImage = await preprocessImage(imageSrc);
       setProcessingStep('문자 인식 준비 중...');
-      const worker = await createWorker('kor+eng', 1, {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            setProcessingStep('텍스트 추출 중...');
-            setScanProgress(Math.floor(m.progress * 100));
-          }
-        },
-      });
+      
+      const worker = await createWorker('kor+eng');
 
+      setProcessingStep('텍스트 추출 및 주소 분석 중...');
       const { data: { text } } = await worker.recognize(processedImage);
       await worker.terminate();
 
       const foundLinks = extractLinks(text);
       setResults(foundLinks);
       if (foundLinks.length === 0) {
-        setError("이미지에서 링크를 찾지 못했습니다. 텍스트가 선명한지 확인해주세요.");
+        setError("이미지에서 주소를 찾지 못했습니다. 글자가 선명한 스크린샷인지 확인해 주세요.");
       }
     } catch (err) {
-      setError("분석 중 오류가 발생했습니다. 다시 시도해주세요.");
+      setError("분석 중 오류가 발생했습니다. 다시 시도해 주세요.");
     } finally {
       setIsProcessing(false);
     }
@@ -108,16 +92,15 @@ export default function App() {
     setImage(null);
     setResults([]);
     setError(null);
-    setScanProgress(0);
     setProcessingStep('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 flex flex-col items-center font-sans lg:pt-12">
+    <div className="min-h-screen bg-slate-50 p-4 flex flex-col items-center font-sans pt-12">
       <div className="w-full max-w-md">
-        <header className="mb-8 text-center text-balance">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 text-white mb-4 shadow-lg shadow-blue-200">
+        <header className="mb-8 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 text-white mb-4 shadow-lg shadow-blue-200推定">
             <ScanText size={24} />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">유튜브 댓글 주소연결</h1>
@@ -150,7 +133,7 @@ export default function App() {
               {isProcessing && (
                 <div className="p-8 flex flex-col items-center space-y-3">
                   <Loader2 className="animate-spin text-blue-600" size={32} />
-                  <p className="text-sm font-medium">{processingStep}</p>
+                  <p className="text-sm font-medium text-slate-700">{processingStep}</p>
                 </div>
               )}
             </div>
@@ -160,16 +143,18 @@ export default function App() {
             <div className="space-y-3">
               <h2 className="text-sm font-bold text-slate-500 px-1">발견된 주소 ({results.length})</h2>
               {results.map((res) => (
-                <div key={res.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3">
-                  <p className="flex-1 text-sm truncate font-medium">{res.url}</p>
-                  <a href={res.url} target="_blank" className="p-2 bg-blue-600 text-white rounded-xl"><ExternalLink size={16} /></a>
+                <div key={res.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-3 shadow-sm">
+                  <p className="flex-1 text-sm truncate font-medium text-slate-800">{res.url}</p>
+                  <a href={res.url} target="_blank" rel="noopener noreferrer" className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">
+                    <ExternalLink size={16} />
+                  </a>
                 </div>
               ))}
             </div>
           )}
           
           {error && (
-             <div className="bg-amber-50 text-amber-800 p-4 rounded-2xl text-xs text-center">{error}</div>
+             <div className="bg-amber-50 text-amber-800 p-4 rounded-2xl text-xs text-center border border-amber-100">{error}</div>
           )}
         </main>
       </div>
